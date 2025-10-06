@@ -21,7 +21,7 @@ data class LlmModelInstance(val engine: Engine, var session: Session)
 
 class SessionViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val _instance: LlmModelInstance
+    private var _instance: LlmModelInstance? = null
     private val _isLoading = MutableLiveData(false)
     val isLoading: LiveData<Boolean> = _isLoading
 
@@ -43,7 +43,6 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             _instance = LlmModelInstance(engine, session)
         } catch (e: Exception) {
             Log.d(TAG, "Exception thrown during session creation: ${e.message}")
-            throw Exception("Unable to initialize SessionViewModel")
         }
     }
 
@@ -58,7 +57,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _isLoading.value = true
             val result = withContext(Dispatchers.IO) {
-                _instance.session.generateContent(inputData)
+                _instance?.session?.generateContent(inputData) ?: "Yarr, Captain Gemma is out to lunch"
             }
             updateMainThreadWithInferenceResult(result)
         }
@@ -71,13 +70,13 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     private fun cleanUp() {
         try {
-            _instance.session.close()
+            _instance?.session?.close()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to close the session: ${e.message}")
         }
 
         try {
-            _instance.engine.close()
+            _instance?.engine?.close()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to close the engine: ${e.message}")
         }
