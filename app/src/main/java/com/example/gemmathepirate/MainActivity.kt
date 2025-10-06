@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -33,19 +35,21 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,10 +72,11 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PirateTalkApp() {
-    val coroutineScope = rememberCoroutineScope()
     var userText by remember { mutableStateOf("") }
-    var pirateText by remember { mutableStateOf("Ahoy, matey! What be yer query?") }
-    var isLoading by remember { mutableStateOf(false) }
+    val viewModel: SessionViewModel = viewModel()
+    val isLoading by viewModel.isLoading.observeAsState(initial = false)
+    val pirateText by viewModel.resultText.observeAsState(initial = "Ahoy, matey! What be yer query?")
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     Scaffold(
         topBar = {
@@ -92,17 +97,17 @@ fun PirateTalkApp() {
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // --- Pirate Visual (Emoji Placeholder) ---
+            // --- Pirate emoji visual ---
             PirateVisual()
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- Pirate Output Bubble ---
+            // --- Pirate output bubble ---
             PirateSpeechBubble(pirateText, isLoading)
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- User Input Field ---
+            // --- User input field ---
             OutlinedTextField(
                 value = userText,
                 onValueChange = { userText = it },
@@ -113,22 +118,23 @@ fun PirateTalkApp() {
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.secondary,
                     unfocusedBorderColor = MaterialTheme.colorScheme.primary
+                ),
+                keyboardOptions = KeyboardOptions(
+                    imeAction = ImeAction.Send
+                ),
+                keyboardActions = KeyboardActions(
+                    onSend = {
+                        askGemmaAction(viewModel, isLoading, userText)
+                        keyboardController?.hide()
+                    }
                 )
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // --- Button to Run Inference on Gemma ---
             Button(
                 onClick = {
-                    if (userText.isNotBlank() && !isLoading) {
-                        isLoading = true
-                        pirateText = "Sailing the digital seas... hold fast!"
-                        coroutineScope.launch {
-                            //pirateText = apiService.generatePirateContent(userText)
-                            isLoading = false
-                        }
-                    }
+                    askGemmaAction(viewModel, isLoading, userText)
                 },
                 enabled = userText.isNotBlank() && !isLoading,
                 modifier = Modifier
@@ -152,6 +158,13 @@ fun PirateTalkApp() {
                 }
             }
         }
+    }
+}
+
+// --- Function to run inference on Gemma ---
+private fun askGemmaAction(viewModel: SessionViewModel, isLoading: Boolean, userText: String) {
+    if (userText.isNotBlank() && !isLoading) {
+        viewModel.runInferenceAsync(userText)
     }
 }
 
